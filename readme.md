@@ -75,6 +75,10 @@ if possible, do not use the precompiled releases. they might be out of date.
 - `--verbose` or `-v`: increase log level by one
 - `--silent`: decrease log level by one
 
+## scripting
+
+scripting infos can be found [here](scripting.md)
+
 ## faq
 
 ### what desktop environments and window managers are supported?

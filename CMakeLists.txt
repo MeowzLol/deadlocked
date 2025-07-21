@@ -22,7 +22,7 @@ set(SDL_INSTALL_DOCS OFF)
 add_subdirectory(lib)
 
 target_link_libraries(deadlocked PRIVATE imgui glm::glm
-                        OpenGL SDL3::SDL3 mithril lua)
+                        OpenGL SDL3::SDL3 mithril lua sol2)
 
 # valgrind/callgrind does not work with native, but with skylake it does
 target_compile_options(deadlocked PRIVATE "-march=native")

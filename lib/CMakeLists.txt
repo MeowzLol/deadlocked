@@ -9,6 +9,7 @@ target_include_directories(imgui PUBLIC "imgui/backends")
 
 add_subdirectory(glm)
 add_subdirectory(sdl)
+add_subdirectory(sol)
 add_subdirectory(mithril)
 
 target_link_libraries(imgui PUBLIC SDL3::SDL3)

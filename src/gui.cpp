@@ -62,9 +62,9 @@ struct sizes {
           sidebar_width(150.0f * scale),
           sidebar_button_height(32.0f * scale),
           sidebar_button_size(sidebar_width, sidebar_button_height),
-          top_bar_height(50.0f * scale),
+          top_bar_height(40.0f * scale),
           top_bar_button_width(100.0f * scale),
-          top_bar_button_size(top_bar_button_width, top_bar_height * 0.75f),
+          top_bar_button_size(top_bar_button_width, top_bar_height),
           combo_width(150.0f * scale),
           drag_width(100.0f * scale) {}
 };
@@ -324,8 +324,7 @@ void Gui() {
         const ImVec2 available_top = ImGui::GetContentRegionAvail();
 
         ImGui::BeginChild(
-            "TopBar", {available_top.x - 8.0f, sizes.top_bar_height},
-            ImGuiChildFlags_AlwaysUseWindowPadding,
+            "TopBar", {available_top.x - 8.0f, sizes.top_bar_height}, 0,
             ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
         if (active_tab == Tab::Aimbot) {

@@ -1,119 +1,26 @@
 #include "script.hpp"
 
-extern "C" {
-#include <lauxlib.h>
-#include <lua.h>
-#include <lualib.h>
-}
-
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
-#include <utility>
 #include <vector>
 
+#include "cs2/player.hpp"
+#include "glm/fwd.hpp"
 #include "key_code.hpp"
-#include "logging.hpp"
+#include "mouse.hpp"
 #include "types.hpp"
 
 Script script;
 
-Vec2 *Vec2Check(lua_State *state, int index) {
-    return static_cast<Vec2 *>(luaL_checkudata(state, index, "vec2_mt"));
-}
-
-i32 Vec2Create(lua_State *state) {
-    const i32 n = lua_gettop(state);
-    f32 x = 0;
-    f32 y = 0;
-    switch (n) {
-        case 0:
-            break;
-        case 1:
-            x = luaL_checknumber(state, 1);
-            y = x;
-            break;
-        case 2:
-            x = luaL_checknumber(state, 1);
-            y = luaL_checknumber(state, 2);
-            break;
-    }
-
-    Vec2 *vec = static_cast<Vec2 *>(lua_newuserdata(state, sizeof(Vec2)));
-    vec->x = x;
-    vec->y = y;
-    luaL_getmetatable(state, "vec2_mt");
-    lua_setmetatable(state, -2);
-    return 1;
-}
-
-i32 Vec2Index(lua_State *state) {
-    const Vec2 *vec = Vec2Check(state, 1);
-    const std::string key = luaL_checkstring(state, 2);
-    if (key == "x") {
-        lua_pushnumber(state, vec->x);
-    } else if (key == "y") {
-        lua_pushnumber(state, vec->y);
-    } else {
-        lua_pushnil(state);
-    }
-    return 1;
-}
-
-i32 RegisterOnce(lua_State *state) {
-    luaL_checktype(state, 1, LUA_TFUNCTION);
-    lua_pushvalue(state, 1);
-    const i32 ref = luaL_ref(state, LUA_REGISTRYINDEX);
-    script.exec_once.push_back(ref);
-    return 0;
-}
-
-i32 RegisterTick(lua_State *state) {
-    luaL_checktype(state, 1, LUA_TFUNCTION);
-    lua_pushvalue(state, 1);
-    const i32 ref = luaL_ref(state, LUA_REGISTRYINDEX);
-    script.exec_tick.push_back(ref);
-    return 0;
-}
-
-i32 RegisterKeyHeld(lua_State *state) {
-    const i32 key = luaL_checkinteger(state, 1);
-    luaL_checktype(state, 2, LUA_TFUNCTION);
-    lua_pushvalue(state, 2);
-    const i32 ref = luaL_ref(state, LUA_REGISTRYINDEX);
-    script.exec_key_held.emplace_back(static_cast<KeyCode>(key), ref);
-    return 0;
-}
-
-i32 RegisterKeyPressed(lua_State *state) {
-    const i32 key = luaL_checkinteger(state, 1);
-    luaL_checktype(state, 2, LUA_TFUNCTION);
-    lua_pushvalue(state, 2);
-    const i32 ref = luaL_ref(state, LUA_REGISTRYINDEX);
-    script.exec_key_pressed.emplace_back(static_cast<KeyCode>(key), ref);
-    return 0;
-}
-
-using LuaFunc = i32 (*)(lua_State *state);
-std::vector<std::pair<const char *, LuaFunc>> functions = {
-    {"register_once", RegisterOnce},
-    {"register_tick", RegisterTick},
-    {"register_key_held", RegisterKeyHeld},
-    {"register_key_pressed", RegisterKeyPressed}};
-
 Script::Script() {
-    state = luaL_newstate();
-    if (!state) {
-        logging::Error("could not initialize scripting engine");
-        std::exit(1);
-    }
-    luaL_openlibs(state);
-    for (const auto &[name, func] : functions) {
-        lua_register(state, name, func);
-    }
+    lua.open_libraries(sol::lib::base, sol::lib::string, sol::lib::math);
 
-    // todo: register vec2 and vec3
-    //luaL_newmetatable(state, "vec2_mt");
+    RegisterVecs();
+    RegisterFunctions();
+    RegisterConstants();
+    RegisterPlayer();
 
     const auto exe = std::filesystem::canonical("/proc/self/exe");
     const auto path = exe.parent_path() / "scripts";
@@ -127,21 +34,117 @@ Script::Script() {
         }
         if (entry.path().filename().extension() == ".lua") {
             std::ostringstream input;
-            std::ifstream file(path);
+            std::ifstream file(entry.path());
             input << file.rdbuf();
             scripts.push_back(input.str());
         }
     }
 
     for (const auto &script : scripts) {
-        luaL_dostring(state, script.c_str());
+        lua.script(script);
     }
 }
 
-void Script::RunFunction(const i32 ref) {
-    lua_rawgeti(state, LUA_REGISTRYINDEX, ref);
-    if (lua_pcall(state, 0, 0, 0) != LUA_OK) {
-        logging::Warning("error in lua function: {}", lua_tostring(state, -1));
-        lua_pop(state, 1);
+void Script::RegisterVecs() {
+    auto v2 = lua.new_usertype<glm::vec2>(
+        "vec2", sol::call_constructor,
+        sol::constructors<glm::vec2(), glm::vec2(f32), glm::vec2(f32, f32)>());
+    v2.set("x", &glm::vec2::x);
+    v2.set("y", &glm::vec2::y);
+    v2.set(
+        sol::meta_function::addition, [](const glm::vec2 &a, const glm::vec2 &b) { return a + b; });
+    v2.set(sol::meta_function::subtraction, [](const glm::vec2 &a, const glm::vec2 &b) {
+        return a - b;
+    });
+    v2.set(sol::meta_function::unary_minus, [](const glm::vec2 &a) { return -a; });
+    v2.set(
+        sol::meta_function::multiplication, sol::overload(
+                                                [](const glm::vec2 &a, float s) { return a * s; },
+                                                [](float s, const glm::vec2 &a) { return a * s; }));
+    v2.set(sol::meta_function::division, [](const glm::vec2 &a, float s) { return a / s; });
+    v2.set(sol::meta_function::equal_to, [](const glm::vec2 &a, const glm::vec2 &b) {
+        return a == b;
+    });
+    v2.set(sol::meta_function::to_string, [](const glm::vec2 &a) {
+        std::ostringstream o;
+        o << "vec2(" << a.x << ", " << a.y << ")";
+        return o.str();
+    });
+    v2.set("dot", [](const glm::vec2 &a, const glm::vec2 &b) { return glm::dot(a, b); });
+    v2.set("length", [](const glm::vec2 &a) { return glm::length(a); });
+    v2.set("normalized", [](const glm::vec2 &a) { return glm::normalize(a); });
+
+    auto v3 = lua.new_usertype<glm::vec3>(
+        "vec3", sol::call_constructor,
+        sol::constructors<glm::vec3(), glm::vec3(f32), glm::vec3(f32, f32, f32)>());
+    v3.set("x", &glm::vec3::x);
+    v3.set("y", &glm::vec3::y);
+    v3.set("z", &glm::vec3::z);
+    v3.set(
+        sol::meta_function::addition, [](const glm::vec3 &a, const glm::vec3 &b) { return a + b; });
+    v3.set(sol::meta_function::subtraction, [](const glm::vec3 &a, const glm::vec3 &b) {
+        return a - b;
+    });
+    v3.set(sol::meta_function::unary_minus, [](const glm::vec3 &a) { return -a; });
+    v3.set(
+        sol::meta_function::multiplication, sol::overload(
+                                                [](const glm::vec3 &a, float s) { return a * s; },
+                                                [](float s, const glm::vec3 a) { return a * s; }));
+    v3.set(sol::meta_function::division, [](const glm::vec3 &a, float s) { return a / s; });
+    v3.set(sol::meta_function::equal_to, [](const glm::vec3 &a, const glm::vec3 &b) {
+        return a == b;
+    });
+    v3.set(sol::meta_function::to_string, [](const glm::vec3 &a) {
+        std::ostringstream o;
+        o << "vec3(" << a.x << ", " << a.y << ", " << a.z << ")";
+        return o.str();
+    });
+    v3.set("dot", [](const glm::vec3 &a, const glm::vec3 &b) { return glm::dot(a, b); });
+    v3.set("cross", [](const glm::vec3 &a, const glm::vec3 &b) { return glm::cross(a, b); });
+    v3.set("length", [](const glm::vec3 &a) { return glm::length(a); });
+    v3.set("normalized", [](const glm::vec3 &a) { return glm::normalize(a); });
+}
+
+void Script::RegisterFunctions() {
+    lua.set_function("register_once", [this](sol::function fn) { exec_once.push_back(fn); });
+    lua.set_function("register_tick", [this](sol::function fn) { exec_tick.push_back(fn); });
+    lua.set_function("register_key_held", [this](i32 key, sol::function fn) {
+        if (!IsKey(key)) {
+            throw std::runtime_error("key is not valid");
+        }
+        exec_key_held.emplace_back(static_cast<KeyCode>(key), fn);
+    });
+    lua.set_function("register_key_pressed", [this](i32 key, sol::function fn) {
+        if (!IsKey(key)) {
+            throw std::runtime_error("key is not valid");
+        }
+        exec_key_pressed.emplace_back(static_cast<KeyCode>(key), fn);
+    });
+
+    lua.set_function("mouse_move", [](const glm::vec2 &coords) { MouseMove(coords); });
+    lua.set_function("mouse_left_press", []() { MouseLeftPress(); });
+    lua.set_function("mouse_left_release", []() { MouseLeftRelease(); });
+}
+
+void Script::RegisterConstants() {
+    auto keys = lua.create_table();
+    for (const auto &[key, id] : key_names) {
+        keys[key] = id;
     }
+    lua.set("key", keys);
+}
+
+void Script::RegisterPlayer() {
+    auto player = lua.new_usertype<Player>("player");
+    player.set("index", [](u64 index) -> std::optional<Player> { return Player::Index(index); });
+    player.set("local", []() { return Player::LocalPlayer(); });
+    player.set("health", [](const Player &player) { return player.Health(); });
+    player.set("armor", [](const Player &player) { return player.Armor(); });
+    player.set("name", [](const Player &player) { return player.Name(); });
+    player.set("team", [](const Player &player) { return player.Team(); });
+    player.set("held_weapon", [](const Player &player) { return player.WeaponName(); });
+    player.set("all_weapons", [](const Player &player) { return player.AllWeapons(); });
+    player.set("position", [](const Player &player) { return player.Position(); });
+    player.set("shots_fired", [](const Player &player) { return player.ShotsFired(); });
+    player.set("is_valid", [](const Player &player) { return player.IsValid(); });
 }

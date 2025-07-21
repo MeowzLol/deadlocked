@@ -16,3 +16,7 @@
 [submodule "lib/lua"]
 	path = lib/lua
 	url = https://github.com/lua/lua
+    branch = v5.4
+[submodule "lib/sol"]
+	path = lib/sol
+	url = https://github.com/ThePhD/sol2

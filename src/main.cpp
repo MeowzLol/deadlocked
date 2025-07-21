@@ -35,6 +35,7 @@ int main(const int argc, const char *argv[]) {
             }
         }
     }
+
     logging::Info("build time: {} {}", std::string(__DATE__), std::string(__TIME__));
     MouseInit();
     Gui();

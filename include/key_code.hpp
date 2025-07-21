@@ -1,6 +1,9 @@
 #pragma once
 
 #include <map>
+#include <unordered_map>
+
+#include "types.hpp"
 
 enum KeyCode {
     KeyNone,
@@ -163,15 +166,75 @@ const std::map<KeyCode, const char *> key_code_names = {
     {KeyCode::KeyX, "X"},
     {KeyCode::KeyY, "Y"},
     {KeyCode::KeyZ, "Z"},
+
     {KeyCode::KeySpace, "Space"},
     {KeyCode::KeyBackspace, "Backspace"},
     {KeyCode::KeyTab, "Tab"},
     {KeyCode::KeyCapslock, "Capslock"},
+
     {KeyCode::KeyLeftShift, "Left Shift"},
     {KeyCode::KeyLeftAlt, "Left Alt"},
     {KeyCode::KeyLeftControl, "Left Control"},
+
     {KeyCode::MouseLeft, "Mouse Left"},
     {KeyCode::MouseRight, "Mouse Right"},
     {KeyCode::MouseMiddle, "Mouse Middle"},
     {KeyCode::Mouse4, "Mouse 4"},
     {KeyCode::Mouse5, "Mouse 5"}};
+
+static const std::unordered_map<const char *, i32> key_names = {
+    {"key_none", KeyNone},
+    {"key_0", Key0},
+    {"key_1", Key1},
+    {"key_2", Key2},
+    {"key_3", Key3},
+    {"key_4", Key4},
+    {"key_5", Key5},
+    {"key_6", Key6},
+    {"key_7", Key7},
+    {"key_8", Key8},
+    {"key_9", Key9},
+    {"key_a", KeyA},
+    {"key_b", KeyB},
+    {"key_c", KeyC},
+    {"key_d", KeyD},
+    {"key_e", KeyE},
+    {"key_f", KeyF},
+    {"key_g", KeyG},
+    {"key_h", KeyH},
+    {"key_i", KeyI},
+    {"key_j", KeyJ},
+    {"key_k", KeyK},
+    {"key_l", KeyL},
+    {"key_m", KeyM},
+    {"key_n", KeyN},
+    {"key_o", KeyO},
+    {"key_p", KeyP},
+    {"key_q", KeyQ},
+    {"key_r", KeyR},
+    {"key_s", KeyS},
+    {"key_t", KeyT},
+    {"key_u", KeyU},
+    {"key_v", KeyV},
+    {"key_w", KeyW},
+    {"key_x", KeyX},
+    {"key_y", KeyY},
+    {"key_z", KeyZ},
+
+    {"key_space", KeySpace},
+    {"key_backspace", KeyBackspace},
+    {"key_tab", KeyTab},
+    {"key_capslock", KeyCapslock},
+
+    {"key_left_shift", KeyLeftShift},
+    {"key_left_alt", KeyLeftAlt},
+    {"key_left_control", KeyLeftControl},
+
+    {"mouse_left", MouseLeft},
+    {"mouse_right", MouseRight},
+    {"mouse_middle", MouseMiddle},
+    {"mouse_4", Mouse4},
+    {"mouse_5", Mouse5},
+};
+
+bool IsKey(i32 key);
